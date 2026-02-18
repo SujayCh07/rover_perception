@@ -1,198 +1,246 @@
-🚀 Lunar Rover Perception – Height-Based Costmap (ROS 2 Jazzy)
+# 🚀 Lunar Rover Perception – Height-Based Costmap (ROS 2 Jazzy)
 
-End-to-end perception MVP for a lunar rover:
+End-to-end perception MVP for lunar rover navigation.
 
-ZED Stereo Camera
-    ↓
+```text
+ZED Camera
+   ↓
 PointCloud2
-    ↓
+   ↓
 TF2 Transform → odom
-    ↓
-Height-based 2D Grid
-    ↓
-nav_msgs/OccupancyGrid
-    ↓
+   ↓
+Height Grid
+   ↓
+OccupancyGrid
+   ↓
 Nav2 / RViz2
+```
 
+---
 
-This project implements a minimal, readable, and modular height-threshold costmap pipeline.
+## 🖥 Requirements
 
-📦 Package Structure
-rover_perception/
-├── package.xml
-├── setup.py
-├── setup.cfg
-├── resource/
-├── rover_perception/
-│   ├── cloud_to_target_frame.py
-│   ├── height_costmap.py
-│   ├── mock_cloud_pub.py
-└── README.md
+* Ubuntu 22.04
+* ROS 2 Jazzy
+* ZED ROS2 Wrapper
+* RViz2
+* NVIDIA Jetson (Orin / Thor recommended)
 
-🖥 System Requirements
+Install ROS Jazzy desktop:
 
-Ubuntu 22.04
-
-ROS 2 Jazzy
-
-ZED ROS2 Wrapper
-
-RViz2
-
-TF2
-
-NVIDIA Jetson (Orin / Thor class recommended)
-
-Install ROS Jazzy if needed:
-
+```bash
 sudo apt install ros-jazzy-desktop
-
+```
 
 Install RViz if missing:
 
+```bash
 sudo apt install ros-jazzy-rviz2
+```
 
-🔧 Setup Instructions
-1️⃣ Create Workspace
+---
+
+## 🔧 Setup
+
+### 1️⃣ Create Workspace
+
+```bash
 mkdir -p ~/rover_ws/src
 cd ~/rover_ws/src
 git clone https://github.com/YOUR_USERNAME/rover_perception.git
+```
 
-2️⃣ Build
+### 2️⃣ Build
+
+```bash
 cd ~/rover_ws
 source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install
 source install/setup.bash
+```
 
+Optional convenience:
 
-Add sourcing to your ~/.bashrc for convenience if desired.
+```bash
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+echo "source ~/rover_ws/install/setup.bash" >> ~/.bashrc
+```
 
-🎥 Running the Pipeline
+---
 
-You need 3 terminals.
+## 🎥 Running the Pipeline
+
+Open **3 terminals**.
 
 In every new terminal:
 
+```bash
 source /opt/ros/jazzy/setup.bash
 source ~/rover_ws/install/setup.bash
+```
 
-🟢 Terminal 1 – Launch ZED
+---
+
+### 🟢 Terminal 1 – Launch ZED
+
+```bash
 ros2 launch zed_wrapper zed_camera.launch.py
+```
 
+Verify cloud:
 
-Verify cloud exists:
-
+```bash
 ros2 topic list | grep cloud
-
+```
 
 You should see:
 
+```text
 /zed/zed_node/point_cloud/cloud_registered
+```
 
-🔵 Terminal 2 – Transform Cloud to Odom
+---
+
+### 🔵 Terminal 2 – Transform Cloud to Odom
+
+```bash
 ros2 run rover_perception cloud_to_target_frame \
 --ros-args \
 -r /point_cloud/cloud_registered:=/zed/zed_node/point_cloud/cloud_registered
-
+```
 
 This transforms:
 
+```text
 zed_left_camera_frame → odom
-
+```
 
 Verify:
 
+```bash
 ros2 topic hz /cloud_in_target_frame
+```
 
-🟣 Terminal 3 – Run Height Costmap
+---
+
+### 🟣 Terminal 3 – Height Costmap
+
+```bash
 ros2 run rover_perception height_costmap
-
+```
 
 Verify:
 
+```bash
 ros2 topic hz /height_costmap
+```
 
-👁 Viewing in RViz2
+---
+
+## 👁 Visualizing in RViz2
 
 Launch:
 
+```bash
 rviz2
+```
 
 Set:
 
-Fixed Frame → odom
+* Fixed Frame → `odom`
 
-Add Displays:
+Add displays:
 
-PointCloud2 → /cloud_in_target_frame
-
-Map → /height_costmap
-
-TF
-
-Grid (optional)
+* PointCloud2 → `/cloud_in_target_frame`
+* Map → `/height_costmap`
+* TF
+* Grid (optional)
 
 If cloud does not appear:
 
-Change Reliability to Best Effort in PointCloud2 settings.
+Change Reliability to **Best Effort** in the PointCloud2 display settings.
 
-🧠 How It Works
-cloud_to_target_frame.py
+---
 
-Subscribes to ZED PointCloud2
+## 🧠 How It Works
 
-Uses TF2 to transform into odom
+### cloud_to_target_frame.py
 
-Publishes /cloud_in_target_frame
+* Subscribes to ZED `PointCloud2`
+* Uses TF2 to transform into `odom`
+* Publishes `/cloud_in_target_frame`
 
-height_costmap.py
+### height_costmap.py
 
-Subscribes to /cloud_in_target_frame
+* Subscribes to `/cloud_in_target_frame`
+* Discretizes XY into grid
+* Stores max Z per cell
+* Applies height threshold
+* Publishes `nav_msgs/OccupancyGrid`
 
-Discretizes XY into grid
+---
 
-Stores max Z per cell
-
-Applies simple height threshold:
-
-if cell_height > threshold:
-    occupied = 100
-else:
-    free = 0
-
-
-Publishes nav_msgs/OccupancyGrid
-
-📐 Frame Conventions
+## 📐 Frame Conventions
 
 ZED optical frame:
 
+```text
 X right
 Y down
 Z forward
-
+```
 
 Target frame:
 
+```text
 odom
+```
 
+All costmap calculations are done in the target frame.
 
-All costmap calculations are performed in the target frame.
+---
 
-🧪 Debugging
-Check cloud publishing
+## 🧪 Debugging
+
+Check cloud rate:
+
+```bash
 ros2 topic hz /zed/zed_node/point_cloud/cloud_registered
+```
 
-Check transform
+Check TF:
+
+```bash
 ros2 run tf2_ros tf2_echo odom zed_left_camera_frame
+```
 
-Check output topics
+Check topic info:
+
+```bash
 ros2 topic info /cloud_in_target_frame -v
 ros2 topic info /height_costmap -v
+```
 
-📈 Current Status
+---
 
-✅ ZED cloud publishing
-✅ TF transform working
-✅ Real-time RViz visualization
-✅ Height threshold costmap publishing
+## ✅ Current Status
+
+* Real ZED cloud integrated
+* TF transform validated
+* RViz visualization working
+* Height-based OccupancyGrid publishing
+
+---
+
+## 🔮 Next Steps
+
+* Add slope filtering
+* Add semantic layer
+* Integrate with Nav2 costmap server
+* Convert critical nodes to C++ if needed
+
+---
+
+**Author:** Lunar Rover Perception Lab
+**ROS Version:** Jazzy
+**Status:** MVP Working
