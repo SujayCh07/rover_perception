@@ -1,4 +1,0 @@
-[console_scripts]
-cloud_to_target_frame = rover_perception.cloud_to_target_frame:main
-height_costmap = rover_perception.height_costmap:main
-mock_cloud_pub = rover_perception.mock_cloud_pub:main
