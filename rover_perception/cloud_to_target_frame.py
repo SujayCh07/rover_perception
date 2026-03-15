@@ -18,7 +18,7 @@ class CloudToTarget(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.target_frame = 'zed_cam_xright_yfwd_zup'
+        self.target_frame = 'odom'
 
     def cb(self, msg: PointCloud2):
         try:
