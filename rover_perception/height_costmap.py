@@ -35,7 +35,7 @@ class HeightCostmap(Node):
         # Topics/frames
         self.declare_parameter('input_topic', '/cloud_in_target_frame')
         self.declare_parameter('output_topic', '/height_costmap')
-        self.declare_parameter('target_frame', 'odom')
+        self.declare_parameter('target_frame', 'map') #switched from odom to map frame (WIP)
 
         # Grid geometry
         self.declare_parameter('resolution', 0.10)     # m/cell
@@ -63,6 +63,8 @@ class HeightCostmap(Node):
         self.input_topic = self.get_parameter('input_topic').value
         self.output_topic = self.get_parameter('output_topic').value
         self.target_frame = self.get_parameter('target_frame').value
+        self.declare_parameter('floor_percentile', 10.0)
+        self.floor_percentile = float(self.get_parameter('floor_percentile').value)
 
         self.resolution = float(self.get_parameter('resolution').value)
         self.w = int(self.get_parameter('width').value)
@@ -128,6 +130,8 @@ class HeightCostmap(Node):
 
         # Iterate points (MVP: simple loop, no optimization)
         # Apply range + z-band filtering before binning
+        # First pass: collect filtered points so we can estimate floor height
+        pts = []
         rmax2 = self.range_max * self.range_max
 
         for (x, y, z) in point_cloud2.read_points(
@@ -135,21 +139,33 @@ class HeightCostmap(Node):
             field_names=('x', 'y', 'z'),
             skip_nans=True
         ):
-            # Range crop in XY
             if (x * x + y * y) > rmax2:
                 continue
-
-            # Z band crop
             if z < self.z_min or z > self.z_max:
                 continue
+            pts.append((x, y, z))
+
+        if len(pts) == 0:
+            return
+
+        # Estimate floor height from low percentile of filtered z values
+        z_values = np.array([p[2] for p in pts], dtype=np.float32)
+        floor_z = float(np.percentile(z_values, self.floor_percentile))
+
+        # Per-cell max relative height and counts
+        max_rel_z = np.full((self.h, self.w), -np.inf, dtype=np.float32)
+        counts = np.zeros((self.h, self.w), dtype=np.uint16)
+
+        for (x, y, z) in pts:
+            z_rel = z - floor_z
 
             gx = int((x - self.origin_x) / self.resolution)
             gy = int((y - self.origin_y) / self.resolution)
 
             if 0 <= gx < self.w and 0 <= gy < self.h:
                 counts[gy, gx] += 1
-                if z > max_z[gy, gx]:
-                    max_z[gy, gx] = z
+                if z_rel > max_rel_z[gy, gx]:
+                    max_rel_z[gy, gx] = z_rel
 
         # OccupancyGrid data: -1 unknown, 0 free, 100 occupied
         if self.unknown_is_free:

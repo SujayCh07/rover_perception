@@ -11,14 +11,18 @@ class CloudToTarget(Node):
             PointCloud2,
             'point_cloud/cloud_registered',
             self.cb,
-            10
+            qos_profile_sensor_data
         )
-        self.pub = self.create_publisher(PointCloud2, 'cloud_in_target_frame', 10)
+        self.pub = self.create_publisher(
+            PointCloud2,
+            self.output_topic,
+            qos_profile_sensor_data
+        )
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.target_frame = 'odom'
+        self.target_frame = 'map' #switched from odom to map frame (WIP)
 
     def cb(self, msg: PointCloud2):
         try:
